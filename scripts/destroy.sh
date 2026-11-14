@@ -24,7 +24,9 @@ cd "$ROOT_DIR/terraform"
 
 if [[ -d .terraform && -f terraform.tfstate ]]; then
   log "Running terraform destroy..."
-  terraform destroy -auto-approve -input=false || log "terraform destroy returned non-zero — continuing to cleanup"
+  # Password value is irrelevant for destroy; the variable is required by the module.
+  terraform destroy -auto-approve -input=false -var "sql_admin_password=destroy-not-needed" || \
+    log "terraform destroy returned non-zero — continuing to cleanup"
 else
   log "No terraform state found — skipping terraform destroy."
 fi

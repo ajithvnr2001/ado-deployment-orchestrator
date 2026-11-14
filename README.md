@@ -6,7 +6,7 @@ Azure DevOps pipelines running Terraform, and a background monitoring service pu
 status to users over SignalR — with a complete audit trail in Azure SQL.
 
 This repository is a **working implementation** of the architecture in
-`docs/images/workflow-reference.png` (sequence diagram + high-level architecture).
+`docs/images/workflow-reference.jpeg` (sequence diagram + high-level architecture).
 
 ![status](https://img.shields.io/badge/.NET-10.0-blue) ![status](https://img.shields.io/badge/React-19-blue) ![status](https://img.shields.io/badge/Terraform-1.13-purple)
 
