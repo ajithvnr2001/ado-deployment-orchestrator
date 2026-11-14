@@ -1,0 +1,121 @@
+:root {
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  line-height: 1.5;
+}
+
+* { box-sizing: border-box; }
+
+body { margin: 0; background: #0f172a; color: #e2e8f0; }
+
+.app {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 1.5rem;
+  color: #60a5fa;
+}
+
+.header p { margin: 0.25rem 0 0; color: #94a3b8; font-size: 0.85rem; }
+
+.env-row {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  padding: 0.75rem 0;
+  flex-wrap: wrap;
+  font-size: 0.85rem;
+}
+
+.env-row label { display: flex; flex-direction: column; gap: 0.15rem; }
+
+.env-row input, .input-row input {
+  background: #1e293b;
+  border: 1px solid #334155;
+  color: #e2e8f0;
+  border-radius: 6px;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.9rem;
+}
+
+.status-pill {
+  padding: 0.3rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: white;
+}
+
+.audit-btn {
+  background: #334155;
+  color: #e2e8f0;
+  border: none;
+  border-radius: 6px;
+  padding: 0.45rem 0.8rem;
+  cursor: pointer;
+}
+
+.audit-btn:hover { background: #475569; }
+
+.chat {
+  flex: 1;
+  overflow-y: auto;
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 10px;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.empty-hint { color: #64748b; font-size: 0.9rem; text-align: center; margin: auto 0; }
+.empty-hint code { color: #60a5fa; }
+
+.message { max-width: 80%; }
+.message.user { align-self: flex-end; }
+.message.user pre {
+  background: #2563eb;
+  color: white;
+}
+.message.system pre { background: #0f172a; border: 1px solid #334155; color: #cbd5e1; }
+
+.message pre {
+  margin: 0;
+  padding: 0.55rem 0.85rem;
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 0.9rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.spinner { color: #60a5fa; font-size: 0.85rem; animation: pulse 1.5s infinite; }
+
+@keyframes pulse { 50% { opacity: 0.4; } }
+
+.input-row {
+  display: flex;
+  gap: 0.6rem;
+  padding-top: 0.75rem;
+}
+
+.input-row input { flex: 1; }
+
+.input-row button {
+  background: #2563eb;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 0.5rem 1.2rem;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.input-row button:disabled { opacity: 0.5; cursor: default; }

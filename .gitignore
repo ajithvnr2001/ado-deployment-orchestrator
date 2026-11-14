@@ -1,0 +1,34 @@
+# Dependencies & tooling
+node_modules/
+frontend/node_modules/
+frontend/dist/
+backend/*/bin/
+backend/*/obj/
+*.user
+
+# Terraform
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+terraform/terraform.tfstate
+terraform/terraform.tfstate.*
+terraform/crash.log
+terraform/*.tfvars
+!terraform/example.tfvars
+
+# Build artifacts
+publish/
+dist/
+*.zip
+
+# Secrets & local config
+.env
+.env.*
+*.pem
+*.key
+~/.docker/config.json
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.swp

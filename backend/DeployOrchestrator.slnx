@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="DeployOrchestrator.Api/DeployOrchestrator.Api.csproj" />
+  <Project Path="DeployOrchestrator.Tests/DeployOrchestrator.Tests.csproj" />
+</Solution>

@@ -1,0 +1,118 @@
+# Azure DevOps deployment pipeline — triggered by the Orchestration Agent
+# (AdoPipelineClient queues this definition with templateParameters).
+#
+# What it does (sequence-diagram phases 4):
+#   1. Receives resource configuration (subscription, resource_group, required fields, tfvars JSON)
+#   2. Writes terraform.tfvars into the resolved Terraform script folder
+#   3. Runs terraform init -> validate -> plan (with approval gate on prod)
+#   4. Runs terraform apply
+#   5. Publishes the plan/apply summary back to the build result
+#
+# Prerequisites (one-time, see docs/DEPLOYMENT.md):
+#   - Service connection named "azure-service-connection" (ARM, workload identity)
+#   - Terraform installed on agents (use "Use Terraform" task or preinstalled)
+
+parameters:
+  - name: request_id
+    type: string
+  - name: terraform_script_folder
+    type: string
+  - name: tfvars_json
+    type: string
+  - name: subscription
+    type: string
+  - name: state
+    type: string
+  - name: work_item_id
+    type: string
+  - name: action
+    type: string
+    default: apply
+    values: [apply, destroy]
+
+variables:
+  - name: TF_DIR
+    value: ${{ parameters.terraform_script_folder }}
+  - group: deployment-secrets   # Variable group with ARM_CLIENT_ID / ARM_CLIENT_SECRET / ARM_TENANT_ID (or use service connection)
+
+stages:
+  - stage: generate_tfvars
+    displayName: 'Commit terraform.tfvars'
+    jobs:
+      - job: gen
+        pool: { vmImage: ubuntu-latest }
+        steps:
+          - checkout: self
+            persistCredentials: true
+          - bash: |
+              set -euo pipefail
+              mkdir -p "$(TF_DIR)"
+              # tfvars JSON (from the orchestrator) -> HCL tfvars
+              echo '${{ parameters.tfvars_json }}' | jq -r '
+                to_entries | map("\(.key) = \"\(.value)\"") | join("\n")' > "$(TF_DIR)/generated.tfvars"
+              cat > "$(TF_DIR)/deploy_meta.tfvars" <<EOF
+              request_id  = "${{ parameters.request_id }}"
+              environment = "${{ parameters.state }}"
+              work_item   = "${{ parameters.work_item_id }}"
+              EOF
+              cat "$(TF_DIR)/generated.tfvars" "$(TF_DIR)/deploy_meta.tfvars"
+            displayName: 'Write generated.tfvars + deploy_meta.tfvars'
+          - bash: |
+              set -euo pipefail
+              git config user.email "orchestrator@ado"
+              git config user.name "Orchestration Agent"
+              git add "$(TF_DIR)/generated.tfvars" "$(TF_DIR)/deploy_meta.tfvars"
+              git commit -m "chore(deploy): tfvars for request ${{ parameters.request_id }} (work item ${{ parameters.work_item_id }})" || true
+              git push origin HEAD:main
+            displayName: 'Commit tfvars confirmation'
+            condition: ne(variables['Build.Reason'], 'PullRequest')
+
+  - stage: terraform_plan
+    displayName: 'Terraform plan'
+    dependsOn: generate_tfvars
+    jobs:
+      - job: plan
+        pool: { vmImage: ubuntu-latest }
+        steps:
+          - checkout: self
+          - task: AzureCLI@2
+            name: plan
+            inputs:
+              azureSubscription: 'azure-service-connection'
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                set -euo pipefail
+                cd "$(TF_DIR)"
+                terraform init -input=false -backend-config="key=${{ parameters.request_id }}.tfstate"
+                terraform validate
+                terraform plan -var-file=generated.tfvars -var-file=deploy_meta.tfvars -out=tfplan -input=false
+                terraform show -json tfplan > tfplan.json
+            displayName: 'terraform init + plan'
+          - publish: $(TF_DIR)
+            artifact: plan
+
+  - stage: terraform_apply
+    displayName: 'Terraform apply'
+    dependsOn: terraform_plan
+    condition: and(succeeded(), ne('${{ parameters.action }}', 'plan-only'))
+    # Review team approval gate on production deployments
+    jobs:
+      - deployment: apply
+        pool: { vmImage: ubuntu-latest }
+        environment: ${{ parameters.state }}   # 'prod' environment carries the manual approval gate
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+                - task: AzureCLI@2
+                  inputs:
+                    azureSubscription: 'azure-service-connection'
+                    scriptType: bash
+                    scriptLocation: inlineScript
+                    inlineScript: |
+                      set -euo pipefail
+                      cd "$(TF_DIR)"
+                      terraform apply -input=false -auto-approve tfplan
+                  displayName: 'terraform apply'
