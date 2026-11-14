@@ -3,6 +3,9 @@
 #  Single-click DEPLOY — Azure DevOps Deployment Orchestration platform
 #  Usage: ./scripts/deploy.sh [--location northeurope] [--workload-location swedencentral]
 #
+#  PREREQUISITES: run ./scripts/install_prereqs.sh once (installs az, terraform,
+#  node, .NET 10, crane) and then `az login`. Beginner guide: docs/GETTING-STARTED.md
+#
 #  What it does (in order):
 #    1. Verifies prerequisites (az login, dotnet, node, terraform)
 #    2. terraform init + apply  ->  RG, Container Apps env, ACR, SQL, SignalR,

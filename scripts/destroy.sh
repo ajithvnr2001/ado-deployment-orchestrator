@@ -6,6 +6,8 @@
 #    2. Safety net: force-deletes any leftover resource group with the
 #       orchestrator prefix and purges soft-deleted Key Vaults.
 #  Usage: ./scripts/destroy.sh [--yes]
+#
+#  Beginner guide: docs/GETTING-STARTED.md
 # ============================================================================
 set -euo pipefail
 

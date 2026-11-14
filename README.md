@@ -41,11 +41,13 @@ ado-orchestrator/
 ├── pipelines/azure-pipelines.yml      # ADO pipeline: tfvars commit -> plan -> apply
 ├── terraform/                         # Full infrastructure as code
 ├── scripts/
+│   ├── install_prereqs.sh             # ONE-COMMAND tooling installer (beginner-friendly)
 │   ├── deploy.sh                      # ONE-COMMAND deploy (builds + provisions + verifies)
 │   ├── destroy.sh                     # ONE-COMMAND destroy (everything)
 │   └── build_image.sh                 # Dockerless container build (buildah/crane/OCI)
 ├── Dockerfile                         # Multi-stage .NET 10 build
 └── docs/
+    ├── GETTING-STARTED.md             # Zero-to-deployed beginner walkthrough (+ troubleshooting)
     ├── ARCHITECTURE.md                # How the system works (matches the sequence diagram)
     ├── DEPLOYMENT.md                  # Single-click deploy/destroy + ADO wiring guide
     ├── PROCESS.md                     # How this repo was built end-to-end (full procedure log)
@@ -56,11 +58,22 @@ ado-orchestrator/
 ## Quick start (single click)
 
 ```bash
-az login                                  # any subscription where you can create resources
-./scripts/deploy.sh                       # provisions + builds + deploys + verifies  (~10 min)
-# ... deploy prints the frontend + API URLs and runs a smoke test ...
-./scripts/destroy.sh                      # tears EVERYTHING down when done
+# 1. Install every tool (az, terraform, node, .NET 10, crane) — one command:
+./scripts/install_prereqs.sh
+
+# 2. Log in to Azure:
+az login
+
+# 3. Deploy everything (~10 min) — builds, provisions, verifies end-to-end:
+./scripts/deploy.sh
+
+# 4. Tear EVERYTHING down when done (no lingering costs):
+./scripts/destroy.sh --yes
 ```
+
+**Never deployed anything before?** Follow the zero-to-deployed walkthrough in
+**[docs/GETTING-STARTED.md](docs/GETTING-STARTED.md)** — exact software requirements,
+Azure account setup, step-by-step first deploy, and a troubleshooting table.
 
 `deploy.sh` is idempotent — run it again any time to rebuild/redeploy the app.
 Detailed walkthrough: **docs/DEPLOYMENT.md**.
