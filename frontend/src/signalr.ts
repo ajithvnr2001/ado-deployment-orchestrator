@@ -1,11 +1,19 @@
-import { HubConnection, HubConnectionBuilder, LogLevel } from '@microsoft/signalr'
+import { HubConnection, HubConnectionBuilder, HttpTransportType, LogLevel } from '@microsoft/signalr'
 import type { StatusUpdate } from './api'
 
-const HUB_URL = `${import.meta.env.VITE_API_BASE ?? ''}/hubs/deployment`
+const HUB_BASE = `${import.meta.env.VITE_API_BASE ?? ''}/hubs/deployment`
 
-export function createStatusConnection(onUpdate: (update: StatusUpdate) => void): HubConnection {
-  const connection = new HubConnectionBuilder()
-    .withUrl(HUB_URL)
+export function createStatusConnection(onUpdate: (update: StatusUpdate) => void, requestId?: string): HubConnection {
+  // Transport is configurable: headless scraping engines (obscura) and some
+  // corporate proxies cannot do WebSockets — SSE works everywhere.
+  // Default (unset) = automatic negotiation (WebSockets preferred).
+  const transport = import.meta.env.VITE_SIGNALR_TRANSPORT as keyof typeof HttpTransportType | undefined
+  let builder = new HubConnectionBuilder()
+  builder = transport
+    ? builder.withUrl(requestId ? `${HUB_BASE}?requestId=${requestId}` : HUB_BASE, { transport: HttpTransportType[transport] })
+    : builder.withUrl(requestId ? `${HUB_BASE}?requestId=${requestId}` : HUB_BASE)
+
+  const connection = builder
     .configureLogging(LogLevel.Information)
     .withAutomaticReconnect()
     .build()
@@ -14,8 +22,11 @@ export function createStatusConnection(onUpdate: (update: StatusUpdate) => void)
   return connection
 }
 
-/** Subscribes to a deployment request's live status group once the connection is established. */
-export async function subscribe(connection: HubConnection, requestId: string): Promise<void> {
-  if (connection.state === 'Disconnected') await connection.start()
-  await connection.invoke('Subscribe', requestId)
+/** Connects and starts. Group membership is established via ?requestId= on connect. */
+export async function connectToRequest(
+  connection: HubConnection,
+  _requestId: string | undefined,
+): Promise<void> {
+  if (connection.state !== 'Disconnected') await connection.stop()
+  await connection.start()
 }

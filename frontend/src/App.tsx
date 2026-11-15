@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import './App.css'
 import {
-  approve, getAudit, startDeployment, submitInputs,
-  type AuditEntry, type DeploymentRequest, type RequestLifecycleStatus,
+  approve, getAudit, getRequest, startDeployment, submitInputs,
+  type AuditEntry, type DeploymentRequest, type RequestLifecycleStatus, type StatusUpdate,
 } from './api'
-import { createStatusConnection, subscribe } from './signalr'
+import { createStatusConnection } from './signalr'
 import type { HubConnection } from '@microsoft/signalr'
 
 interface ChatMessage {
@@ -35,30 +35,65 @@ function App() {
   const [busy, setBusy] = useState(false)
   const nextId = useRef(1)
   const feedRef = useRef<HTMLDivElement>(null)
+  const connRef = useRef<HubConnection | null>(null)
+  const lastStatusKey = useRef<string | null>(null)
 
   const say = useCallback((role: 'user' | 'system', text: string) => {
     setMessages((prev) => [...prev, { id: nextId.current++, role, text }])
   }, [])
 
-  // SignalR: live status updates pushed by the monitoring service
-  useEffect(() => {
-    const conn = createStatusConnection((update) => {
-      say('system', `[live] ${update.message ?? update.status}`)
-      setCurrent((prev) => (prev && prev.id === update.requestId
-        ? { ...prev, status: update.status, statusMessage: update.message }
-        : prev))
-    })
-    setConnection(conn)
-    return () => { void conn.stop() }
+  const applyUpdate = useCallback((update: StatusUpdate) => {
+    // Dedupe: polling and the SignalR push channel both feed this handler.
+    const key = `${update.requestId}:${update.status}:${update.message ?? ''}`
+    if (lastStatusKey.current === key) return
+    lastStatusKey.current = key
+    say('system', `[live] ${update.message ?? update.status}`)
+    setCurrent((prev) => (prev && prev.id === update.requestId
+      ? { ...prev, status: update.status, statusMessage: update.message }
+      : prev))
   }, [say])
 
+  const ensureHub = useCallback((requestId?: string) => {
+    // (Re)connect the hub with ?requestId= so the server adds us to the group on connect.
+    // Fire-and-forget: SignalR issues must never block the chat flow —
+    // the status-polling fallback keeps the UI correct regardless.
+    const old = connRef.current
+    if (old) { void old.stop().catch(() => undefined) }
+    const conn = createStatusConnection(applyUpdate, requestId)
+    connRef.current = conn
+    setConnection(conn)
+    void conn.start().catch(() => undefined)
+  }, [applyUpdate])
+
+  // Warm up the hub connection on page load (no group yet — group joins per request)
   useEffect(() => {
-    feedRef.current?.scrollTo({ top: feedRef.current.scrollHeight })
-  }, [messages])
+    ensureHub(undefined)
+    return () => { void connRef.current?.stop() }
+  }, [ensureHub])
 
   const refreshAudit = useCallback(async (id: string) => {
     try { setAudit(await getAudit(id)) } catch { /* audit is best-effort in the UI */ }
   }, [])
+
+  // Status-polling fallback: guarantees progress display even if the push
+  // channel (SignalR) is unavailable (WebSocket-restricted networks, proxies).
+  useEffect(() => {
+    const active = current && !['Draft', 'CompletedSuccess', 'CompletedFailed', 'Decommissioned'].includes(current.status)
+    if (!current || !active) return
+    const id = current.id
+    const timer = setInterval(async () => {
+      try {
+        const fresh = await getRequest(id)
+        applyUpdate({ requestId: fresh.id, status: fresh.status, message: fresh.statusMessage, timestampUtc: '' })
+        if (['PipelineRunning', 'CompletedSuccess', 'CompletedFailed'].includes(fresh.status)) void refreshAudit(id)
+      } catch { /* transient errors ignored — next tick retries */ }
+    }, 2000)
+    return () => clearInterval(timer)
+  }, [current, applyUpdate, refreshAudit])
+
+  useEffect(() => {
+    feedRef.current?.scrollTo({ top: feedRef.current.scrollHeight })
+  }, [messages])
 
   const handleSend = useCallback(async () => {
     const text = input.trim()
@@ -78,7 +113,7 @@ function App() {
           resourceName: text,
         })
         setCurrent(request)
-        await subscribe(connection!, request.id)
+        ensureHub(request.id)
         await refreshAudit(request.id)
         say('system', `Request ${request.id.slice(0, 8)} — status: ${STATUS_LABELS[request.status]}`)
         if (request.resourceType) say('system', `Inferred resource type: ${request.resourceType} (pipeline ${request.pipelineId}, folder ${request.terraformScriptFolder})`)
@@ -120,7 +155,7 @@ function App() {
           requestedBy: 'chat-user@contoso.com', subscription, state, resourceName: text,
         })
         setCurrent(request)
-        await subscribe(connection!, request.id)
+        ensureHub(request.id)
         await refreshAudit(request.id)
         say('system', `Request ${request.id.slice(0, 8)} — status: ${STATUS_LABELS[request.status]}`)
       }
@@ -170,7 +205,7 @@ function App() {
           </div>
         )}
         {messages.map((m) => (
-          <div key={m.id} className={`message ${m.role}`}>
+          <div key={m.id} className={`message ${m.role}${m.text.startsWith('[live]') ? ' live' : ''}`}>
             <pre>{m.text}</pre>
           </div>
         ))}
